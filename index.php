@@ -340,7 +340,7 @@ function get_web_page( $url )
         
         fclose($file);
 
-        $file_addresses = fopen("source/input-1.txt", "r") or die("Unable to open file!");
+        $file_addresses = fopen("source/input-2.txt", "r") or die("Unable to open file!");
 
         $addresses = [];
 
