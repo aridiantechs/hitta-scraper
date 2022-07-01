@@ -1,7 +1,6 @@
 <?php
 
 error_reporting(0);
-ini_set('memory_limit', '-1');
 
 include_once('simple_html_dom.php');
 require_once (__DIR__ . '/vendor/autoload.php');
@@ -336,36 +335,38 @@ function get_web_page( $url )
 
         $file_name = "final";
         
-        $file = fopen('uploads/'.$file_name.'.txt', "w");
+        // $file = fopen('uploads/'.$file_name.'.txt', "w");
         
-        fclose($file);
+        // fclose($file);
 
         $file_addresses = fopen("source/input-6.txt", "r") or die("Unable to open file!");
 
-        $addresses = [];
+        $addresses   = [];
+        $u_addresses = [];
 
 
         while (($line = fgets($file_addresses)) !== false)
             $addresses[] = $line;
 
-        // getData($addresses[0], 1, $file_name);
-        // die();
-
-
 
         foreach(array_unique($addresses) as $key => $address){
-//             echo $key;
 
-            $input = trim($address);
+            if($key < 3417)
+                continue;
 
-            $result = explode(' lgh', $address);
-            
-            $address = $result[0];
-            
-            getData($input, $address, $key, $file_name);
+            $input         = trim($address);
+
+            $result        = explode(' lgh', $address);
+
+            $u_addresses[] = $result[0];
+
         }
 
 
+        foreach(array_unique($u_addresses) as $key => $address){
 
-        
+            getData($address, $address, $key, $file_name);
+
+        }
+
     }
