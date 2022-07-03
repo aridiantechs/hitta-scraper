@@ -362,6 +362,8 @@ class Scraper
 
         // $file_addresses = fopen("source/input-1.txt", "r") or die("Unable to open file!");
         $input_file_name = str_replace("scraper","input","Hello world!");
+
+        echo $input_file_name;die();
         $file_addresses = fopen($input_file_name, "r") or die("Unable to open file!");
 
         $addresses   = [];
