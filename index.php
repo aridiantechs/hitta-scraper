@@ -54,6 +54,7 @@ class Scraper
         $header['errmsg']  = $errmsg;
         $header['content'] = $content;
         return $header;
+
     }
 
     public function getDataWithAPI( $url )
@@ -111,27 +112,6 @@ class Scraper
         
     }
 
-    public function headLessRequest($url){
-
-        $browserCommand = 'google-chrome';
-
-        $browserFactory = new BrowserFactory($browserCommand);
-        $browser = $browserFactory->createBrowser([
-                    'customFlags' => ['--no-sandbox'],
-                ]);
-
-        try {
-            // creates a new page and navigate to an url
-            $page = $browser->createPage();
-            $page->navigate($url)->waitForNavigation();
-
-            return $page->getHtml();
-        }
-        finally {
-            $browser->close();
-        }
-    }
-
     public function putTestHtml($html = '')
     {
         file_put_contents("uploads/html.txt", "");
@@ -140,6 +120,7 @@ class Scraper
         $txt = $html;
         fwrite($myfile, $txt);
         fclose($myfile);
+        
     }
 
     public function findAge($birthDate = null)
@@ -151,6 +132,7 @@ class Scraper
         : (date("Y") - $birthDate[0]));
         
         return $age;
+        
     }
 
     public function getData($address, $key, $file_name, $next_page = null)
@@ -158,9 +140,8 @@ class Scraper
         if($this->recursive_count > 5)
             return;
 
-
         $input = $address;
-
+        
         $original_address = $address = trim(preg_replace('/\s\s+/', ' ', $address));
 
         $address = str_replace(' ', '+', urlencode($address));
@@ -188,20 +169,34 @@ class Scraper
 
         if(gettype($dom1) !== 'boolean'){
 
+            if(!is_numeric(substr($original_address, 0, 1)))
+                $original_address = preg_replace('/(\d+)/', '${1} ', $original_address);
+
+            else{
+
+                $add       = explode(' ', $original_address);
+                $last_item = preg_replace('/(\d+)/', '${1} ', end($add));
+                array_pop($add);
+                $original_address = implode(" ",$add) . ' ' . $last_item;
+            
+            }
+
             foreach($dom1->find('.style_searchResult__KcJ6E') as $key => $element){
-                
+
                 $page_link = $element->find('.style_searchResultLink__2i2BY', 0)->href;
                 $s_address = $element->find('.style_displayLocation__BN9e_', 0)->plaintext;
 
-                if (strpos($s_address, $original_address) !== false){
+                
+                if (strpos(trim($s_address), trim($original_address)) !== false){
 
+                    // echo '   >>>>   ' . $s_address . ' == ' . $original_address . '    <<<<   ';
                     $result = $this->get_web_page('https://www.hitta.se/'.$page_link);
                     $html   = $result['content'];
                     $dom    = str_get_html($html);
 
 
-                    $name            = $dom->find('.heading--1', 0)->plaintext;
-                    $address_details = $dom->find('address', 0)->plaintext;
+                    $name            = !is_null($dom->find('.heading--1', 0)) ? $dom->find('.heading--1', 0)->plaintext : '';
+                    $address_details = !is_null($dom->find('address', 0)) ? $dom->find('address', 0)->plaintext : '';
                     
                     $pos = preg_split("/\r\n|\n|\r/", $address_details);
                     
@@ -215,23 +210,26 @@ class Scraper
                     }
 
 
-
-                    $address_type = $dom->find('.styleManual_addressBox__qXjxb .mb-2', 0)->plaintext. '     ';
+                    $address_type = ($dom->find('.styleManual_addressBox__qXjxb .mb-2', 0)) ? $dom->find('.styleManual_addressBox__qXjxb .mb-2', 0)->plaintext : '';
 
                     if (strpos($address_type, 'Lägenhetsnummer') !== false){
                         $address = $address . ' lgh ' . filter_var($address_type, FILTER_SANITIZE_NUMBER_INT);
                         $address_type = 'lgh';
                     }
-                    else
+                    if(trim($address_type) == 'Vägbeskrivning')
                         $address_type = '';
 
-                    if (is_null($dom->find('#floor_area h3', 0)))
-                        $floor_area = '';
-                    else{
+                    
+                    $floor_area = '';
+
+                    if (!is_null($dom->find('#floor_area h3', 0))){
 
                         $floor_area = $dom->find('#floor_area h3', 0)->plaintext;
+
                         $floor_area = filter_var(str_replace("m2", "", $floor_area), FILTER_SANITIZE_NUMBER_INT);
+
                     }
+
 
                     $user_json = strip_tags($dom->find('script[type=application/ld+json]', 0));
 
@@ -254,7 +252,7 @@ class Scraper
                     
                     // Store data
                     if($name == ''){
-                        createLog($key,$input,'Scraper issue');
+                        $this->createLog($key,$input,'Scraper issue');
                     }
                     else{
 
@@ -281,6 +279,9 @@ class Scraper
                     }
 
                 }
+                else{
+                    // echo ' Failing due to unmatch address  >>>>   ' . $s_address . ' == ' . $original_address . '    <<<<   ';;
+                }
             }
 
             if(!is_null($dom1->find('div[data-trackcat="search-result-pagination"] a'))){
@@ -294,7 +295,10 @@ class Scraper
                 
                 }
 
-                if($next_page){
+                // echo $next_page . '  =>  ' . $this->recursive_count . '                            ';
+
+                if(trim($next_page)){
+
                     $this->recursive_count++;
                     $this->getData($input, $key, $file_name, trim($next_page));
                 }
@@ -304,7 +308,7 @@ class Scraper
         }
         else{
             
-            createLog($key,$original_address,'Proxy or Scraper not working');
+            $this->createLog($key,$original_address,'Proxy or Scraper not working');
             // sleep(10);
             // return;
         
@@ -314,7 +318,8 @@ class Scraper
 
     }
 
-    public function createLog($key,$address,$page_link, $address_found = false){
+    public function createLog($key,$address,$page_link, $address_found = false)
+    {
         
         $myfile = fopen('./logs/log.txt', "a") or die("Unable to open file!");
 
@@ -342,9 +347,27 @@ class Scraper
             fclose($myfile);            
 
         }
+        
     }
 
+    public function getLastAddress()
+    {
+        
+        $file_addresses = fopen('uploads/final.txt', "r") or die("Unable to open file!");
+
+        $last_line = '';
+
+        while (($line = fgets($file_addresses)) !== false)
+            $last_line = $line;
+
+        $last_address = [];
+        $last_address = preg_split("/\t+/", $last_line);
+
+        return $last_address[0] ?? '';
+
     }
+
+}
 
 
 
@@ -354,16 +377,23 @@ class Scraper
         
         $file_name = "final";
         
-        $file = fopen('uploads/'.$file_name.'.txt', "w");
+        // $file = fopen('uploads/'.$file_name.'.txt', "w");
         
-        fclose($file);
+        // fclose($file);
 
-        $input_file_name = str_replace("scraper", "input", $input_file_name);
-        $input_file_name = 'source/' . $input_file_name . '.txt';
 
-        // $file_addresses = fopen("source/input-1.txt", "r") or die("Unable to open file!");
+        if($input_file_name == 'DESKTOP-AJFT9FC')
+        
+            $file_addresses = fopen("source/ubuntu-s-1vcpu-1gb-amd-fra1-01.txt", "r") or die("Unable to open file!");
+        
+        else{
+        
+            $input_file_name = str_replace("scraper", "input", $input_file_name);
+            $input_file_name = 'source/' . $input_file_name . '.txt';
+            $file_addresses = fopen($input_file_name, "r") or die("Unable to open file!");
+        
+        }
 
-        $file_addresses = fopen($input_file_name, "r") or die("Unable to open file!");
 
         $addresses   = [];
         $unique_addresses = [];
@@ -374,9 +404,6 @@ class Scraper
 
 
         foreach(array_unique($addresses) as $key => $address){
-
-            // if($key < 3888)
-            //     continue;
 
             $input         = trim($address);
 
@@ -389,12 +416,31 @@ class Scraper
 
         }
 
+        // get the last line from final.txt
+        $obj = new Scraper();
+        $last_address = $obj->getLastAddress();
+        $obj = NULL;
+
+        $found = false;
 
         foreach(array_unique($unique_addresses) as $key => $address){
 
+            if($last_address && !$found){
+                
+                if(trim($last_address) !== trim($address))
+                    continue;
+                
+                else
+                    $found = true;
+            
+            }
+            
             $obj = new Scraper();
 
             $obj->getData($address, $key, $file_name);
+            
+            $obj = NULL;
+            
         }
 
     }
